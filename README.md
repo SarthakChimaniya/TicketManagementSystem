@@ -164,11 +164,42 @@ npm test
 ```
 
 ### 4. Start the Application
-- **Development Mode** (with Nodemon auto-reload):
+- **Backend Development Mode** (Nodemon auto-reload):
   ```bash
   npm run dev
   ```
-- **Production Mode**:
+- **Frontend Development Mode** (Vite HMR):
+  ```bash
+  npm run client
+  # or from client directory:
+  cd client && npm run dev
+  ```
+- **Build Frontend for Production**:
+  ```bash
+  npm run client:build
+  ```
+- **Production Server (Backend + Built Frontend)**:
   ```bash
   npm start
   ```
+
+---
+
+## 🎨 Frontend View Layer (`client/`)
+
+- **Framework**: React 19 + Vite with Tailwind CSS.
+- **Routing**: React Router with responsive routes:
+  - `/`: Modern Home page with blockbuster showcase, now-showing grid, and genre filters.
+  - `/movies`: Movie Listings with live search, genre filters, and sort options.
+  - `/movies/:movieId`: Movie details, upcoming dates, and theatre showtimes.
+  - `/seat-selection/:showId`: Real-time interactive seat grid with Balcony, Middle, Lower tier pricing and Socket.io locks.
+  - `/checkout`: Summary breakdown, payment simulation (success/decline), and e-ticket QR token generation.
+  - `/profile`: User Profile, historical bookings, watchlist, and submitted reviews.
+  - `/admin`: Responsive Admin Dashboard with Movies CRUD, Theatres, Revenue Analytics, and Review Moderation.
+- **Shared Components**:
+  - `Navbar`: Cinema branding, navigation links, user dropdown, and mobile drawer menu.
+  - `MovieCard`: Poster image, rating badge, genre tags, certification, and watchlist toggle.
+  - `AuthModals`: Sign In and Register modals with client validation and user/admin role selection.
+  - `Footer`: Branding, features summary, and quick links.
+- **HTTP Client**: Axios instance with request/response interceptors to attach JWT tokens (`Authorization: Bearer <token>`) and handle 401 expiration.
+
