@@ -12,6 +12,7 @@ import SeatSelection from './pages/SeatSelection';
 import Checkout from './pages/Checkout';
 import UserProfile from './pages/UserProfile';
 import AdminDashboard from './pages/AdminDashboard';
+import BookingConfirmation from './pages/BookingConfirmation';
 
 function NotFound() {
   return (
@@ -50,6 +51,7 @@ function App() {
             <Route path="/shows/:showId" element={<ShowDetails />} />
             <Route path="/seat-selection/:showId" element={<SeatSelection />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/booking-confirmed" element={<BookingConfirmation />} />
             <Route path="/profile" element={<UserProfile />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />

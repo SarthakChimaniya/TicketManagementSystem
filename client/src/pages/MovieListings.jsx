@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, SlidersHorizontal, Film } from 'lucide-react';
+import { Search, Filter, SlidersHorizontal, Film, Star, X } from 'lucide-react';
 import MovieCard from '../components/MovieCard';
 import { movieAPI } from '../services/api';
 
@@ -43,6 +43,26 @@ const DEFAULT_MOVIES = [
     averageRating: 5.0,
     language: 'English',
     media: { poster: 'https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?w=500&auto=format&fit=crop&q=80' }
+  },
+  {
+    movieId: 'MOV-105',
+    movieName: 'Inception',
+    genres: ['Action', 'Sci-Fi', 'Thriller'],
+    runtime: 148,
+    certification: 'UA',
+    averageRating: 4.8,
+    language: 'English',
+    media: { poster: 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?w=500&auto=format&fit=crop&q=80' }
+  },
+  {
+    movieId: 'MOV-106',
+    movieName: 'Spider-Man: Across the Spider-Verse',
+    genres: ['Animation', 'Action', 'Adventure'],
+    runtime: 140,
+    certification: 'U',
+    averageRating: 4.9,
+    language: 'English',
+    media: { poster: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop&q=80' }
   }
 ];
 
@@ -51,6 +71,7 @@ const MovieListings = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [selectedLanguage, setSelectedLanguage] = useState('All');
+  const [minRating, setMinRating] = useState('0'); // 0, 4.5, 4.0, 3.5
   const [sortBy, setSortBy] = useState('rating');
   const [loading, setLoading] = useState(false);
 
@@ -80,8 +101,9 @@ const MovieListings = () => {
     const matchesLanguage =
       selectedLanguage === 'All' ||
       (movie.language && movie.language.toLowerCase() === selectedLanguage.toLowerCase());
+    const matchesRating = Number(movie.averageRating || 0) >= Number(minRating);
 
-    return matchesSearch && matchesGenre && matchesLanguage;
+    return matchesSearch && matchesGenre && matchesLanguage && matchesRating;
   });
 
   // Sort Logic
@@ -98,6 +120,15 @@ const MovieListings = () => {
   const allGenres = ['All', ...new Set(movies.flatMap((m) => m.genres || []))];
   const allLanguages = ['All', ...new Set(movies.map((m) => m.language || 'English'))];
 
+  const hasActiveFilters = searchTerm !== '' || selectedGenre !== 'All' || selectedLanguage !== 'All' || minRating !== '0';
+
+  const resetAllFilters = () => {
+    setSearchTerm('');
+    setSelectedGenre('All');
+    setSelectedLanguage('All');
+    setMinRating('0');
+  };
+
   return (
     <div className="space-y-8">
       {/* Page Title & Search Header */}
@@ -105,7 +136,7 @@ const MovieListings = () => {
         <div>
           <h1 className="text-3xl font-black text-white tracking-tight">Movie Listings</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Browse currently showing cinematic releases and reserve your preferred seats
+            Browse currently showing cinematic releases with real-time seat availability
           </p>
         </div>
 
@@ -119,54 +150,98 @@ const MovieListings = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 text-sm"
           />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Filter and Sort Toolbar */}
-      <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Genre Filter */}
-          <div className="flex items-center space-x-2">
-            <span className="text-xs font-bold text-slate-400 uppercase">Genre:</span>
-            <select
-              value={selectedGenre}
-              onChange={(e) => setSelectedGenre(e.target.value)}
-              className="py-1.5 px-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold focus:outline-none focus:border-rose-500"
-            >
-              {allGenres.map((g) => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
+      <div className="p-4 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Genre Filter */}
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-400 uppercase">Genre:</span>
+              <select
+                value={selectedGenre}
+                onChange={(e) => setSelectedGenre(e.target.value)}
+                className="py-1.5 px-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold focus:outline-none focus:border-rose-500"
+              >
+                {allGenres.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Language Filter */}
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-400 uppercase">Language:</span>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="py-1.5 px-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold focus:outline-none focus:border-rose-500"
+              >
+                {allLanguages.map((l) => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Rating Filter */}
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-400 uppercase">Ratings:</span>
+              <select
+                value={minRating}
+                onChange={(e) => setMinRating(e.target.value)}
+                className="py-1.5 px-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold focus:outline-none focus:border-rose-500"
+              >
+                <option value="0">All Ratings</option>
+                <option value="4.8">4.8+ ⭐ (Top Rated)</option>
+                <option value="4.5">4.5+ ⭐ (Great)</option>
+                <option value="4.0">4.0+ ⭐ (Good)</option>
+              </select>
+            </div>
           </div>
 
-          {/* Language Filter */}
-          <div className="flex items-center space-x-2">
-            <span className="text-xs font-bold text-slate-400 uppercase">Language:</span>
-            <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="py-1.5 px-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold focus:outline-none focus:border-rose-500"
-            >
-              {allLanguages.map((l) => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
+          {/* Sort Controls & Reset */}
+          <div className="flex items-center space-x-3">
+            {hasActiveFilters && (
+              <button
+                onClick={resetAllFilters}
+                className="text-xs font-bold text-rose-400 hover:text-rose-300 underline"
+              >
+                Clear Filters
+              </button>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <SlidersHorizontal className="w-4 h-4 text-slate-400" />
+              <span className="text-xs font-bold text-slate-400 uppercase">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="py-1.5 px-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold focus:outline-none focus:border-rose-500"
+              >
+                <option value="rating">Highest Rated</option>
+                <option value="runtime">Longest Runtime</option>
+                <option value="name">Alphabetical (A-Z)</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Sort Controls */}
-        <div className="flex items-center space-x-2">
-          <SlidersHorizontal className="w-4 h-4 text-slate-400" />
-          <span className="text-xs font-bold text-slate-400 uppercase">Sort By:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="py-1.5 px-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold focus:outline-none focus:border-rose-500"
-          >
-            <option value="rating">Highest Rated</option>
-            <option value="runtime">Longest Runtime</option>
-            <option value="name">Alphabetical (A-Z)</option>
-          </select>
+        {/* Result Count Indicator */}
+        <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-3">
+          <span>Showing <strong className="text-white">{sortedMovies.length}</strong> of {movies.length} movies</span>
+          {hasActiveFilters && (
+            <span className="text-rose-400 font-semibold">Active filters applied</span>
+          )}
         </div>
       </div>
 
@@ -182,17 +257,13 @@ const MovieListings = () => {
           <Film className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-slate-200">No movies match your criteria</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            Try adjusting your search query, genre, or language filters to find what you are looking for.
+            Try adjusting your search query, genre, language, or minimum rating threshold.
           </p>
           <button
-            onClick={() => {
-              setSearchTerm('');
-              setSelectedGenre('All');
-              setSelectedLanguage('All');
-            }}
-            className="mt-4 px-4 py-2 rounded-xl bg-slate-800 text-rose-400 text-xs font-bold hover:bg-slate-700"
+            onClick={resetAllFilters}
+            className="mt-4 px-5 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-500 shadow-lg shadow-rose-600/20"
           >
-            Reset Filters
+            Reset All Filters
           </button>
         </div>
       )}
