@@ -71,6 +71,18 @@ app.get('/api/health', (req, res) => {
 // Mount Centralized API Routes
 app.use('/api', apiRoutes);
 
+// Production Frontend Static Asset Serving
+const path = require('path');
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'client', 'dist')));
+  app.get('*', (req, res, next) => {
+    if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/socket.io')) {
+      return next();
+    }
+    res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
+  });
+}
+
 // 404 Not Found Handler
 app.use((req, res, next) => {
   res.status(404).json({
