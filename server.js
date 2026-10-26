@@ -4,6 +4,10 @@ const express = require('express');
 const cors = require('cors');
 const { Server } = require('socket.io');
 
+const path = require('path');
+const fs = require('fs');
+const clientDist = path.join(__dirname, 'client', 'dist');
+
 const connectDB = require('./config/db');
 const apiRoutes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
@@ -34,6 +38,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health Check & Root Route
 app.get('/', (req, res) => {
+  if (req.headers.accept && req.headers.accept.includes('text/html') && fs.existsSync(clientDist)) {
+    return res.sendFile(path.join(clientDist, 'index.html'));
+  }
   res.status(200).json({
     message: 'Welcome to iMovies Backend API',
     status: 'online',
@@ -71,15 +78,14 @@ app.get('/api/health', (req, res) => {
 // Mount Centralized API Routes
 app.use('/api', apiRoutes);
 
-// Production Frontend Static Asset Serving
-const path = require('path');
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'client', 'dist')));
-  app.get('*', (req, res, next) => {
-    if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/socket.io')) {
-      return next();
+// Frontend Static Asset Serving (Serves built React app)
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.originalUrl.startsWith('/api') && !req.originalUrl.startsWith('/socket.io')) {
+      return res.sendFile(path.join(clientDist, 'index.html'));
     }
-    res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
+    next();
   });
 }
 

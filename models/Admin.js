@@ -34,13 +34,12 @@ const adminSchema = new mongoose.Schema(
 );
 
 // Hash password before saving if modified
-adminSchema.pre('save', async function (next) {
+adminSchema.pre('save', async function () {
   if (!this.isModified('password')) {
-    return next();
+    return;
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // Compare candidate password with hashed password
