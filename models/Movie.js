@@ -37,6 +37,17 @@ const movieSchema = new mongoose.Schema(
       type: Date,
       required: [true, 'Release date is required']
     },
+    language: {
+      type: String,
+      trim: true,
+      default: 'English'
+    },
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5
+    },
     description: {
       type: String,
       trim: true,

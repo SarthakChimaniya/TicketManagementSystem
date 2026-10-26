@@ -1,6 +1,6 @@
 # iMovies Backend API
 
-Node.js and Express.js backend for the **iMovies** movie ticket booking application, strictly following the **Model-View-Controller (MVC)** architecture with **MongoDB** & **Mongoose**, **JWT authentication**, and **bcrypt.js** password encryption.
+Node.js and Express.js backend for the **iMovies** movie ticket booking application, strictly following the **Model-View-Controller (MVC)** architecture with **MongoDB** & **Mongoose**, **JWT authentication**, **bcrypt.js** password encryption, **Socket.io** real-time seat management, and **Payment Gateway (Stripe/Sandbox)** checkout integration.
 
 ---
 
@@ -14,19 +14,19 @@ TicketbookingSystem/
 │   ├── authController.js     # User & Admin registration, login, JWT issuance
 │   ├── userController.js     # User profile, watchlist, reviews, booking history
 │   ├── adminController.js    # Admin dashboard, CRUD for movies/theatres, reports, moderation
+│   ├── showController.js     # Filtered show browsing, seat layout & availability
+│   ├── bookingController.js  # Seat locking, checkout, payment processing, e-tickets
 │   ├── movieController.js    # Public/General movie operations
 │   ├── theatreController.js  # Public/General theatre operations
-│   ├── showController.js     # Show scheduling and queries
-│   ├── bookingController.js  # Ticket booking and seat allocation
 │   ├── favoriteController.js # Watchlist / favorites management
 │   └── reviewController.js   # Movie reviews and admin moderation
 ├── middleware/
 │   ├── authMiddleware.js     # verifyToken and isAdmin role-based access control
 │   └── errorHandler.js       # Centralized error-handling middleware
 ├── models/
-│   ├── User.js               # Standard user schema with bcrypt hashing & role field
+│   ├── User.js               # User schema with bcrypt hashing & role field
 │   ├── Admin.js              # Admin schema with bcrypt hashing & role field
-│   ├── Movie.js              # Movie catalog schema with media and cast
+│   ├── Movie.js              # Movie catalog schema with language, rating, cast
 │   ├── Theatre.js            # Theatre schema with capacities and tier pricing
 │   ├── Show.js               # Show scheduling schema linking movie and theatre
 │   ├── Booking.js            # Booking schema with seat numbers (ticketsData)
@@ -37,21 +37,26 @@ TicketbookingSystem/
 │   ├── authRoutes.js         # /api/auth endpoints (register, login, me)
 │   ├── userRoutes.js         # /api/user endpoints (profile, watchlist, reviews, bookings)
 │   ├── adminRoutes.js        # /api/admin endpoints (dashboard, movies, theatres, reports)
+│   ├── showRoutes.js         # /api/shows endpoints (browse, seats layout, CRUD)
+│   ├── bookingRoutes.js      # /api/bookings endpoints (lock, checkout, payment)
 │   ├── movieRoutes.js        # /api/movies endpoints
 │   ├── theatreRoutes.js      # /api/theatres endpoints
-│   ├── showRoutes.js         # /api/shows endpoints
-│   ├── bookingRoutes.js      # /api/bookings endpoints
 │   ├── favoriteRoutes.js     # /api/favorites endpoints
 │   ├── reviewRoutes.js       # /api/reviews endpoints
 │   └── index.js              # Unified API router
+├── services/
+│   ├── seatLockService.js    # In-memory real-time seat locks with TTL & broadcast
+│   ├── paymentService.js     # Stripe / Sandbox payment gateway processor
+│   └── notificationService.js# Mock Email & SMS e-ticket notification dispatcher
 ├── tests/
 │   ├── test_system.js        # Integration tests for auth and validation
-│   └── test_controllers.js   # Unit & schema validation tests for controllers
+│   ├── test_controllers.js   # Unit & schema validation tests for controllers
+│   └── test_prompt3.js       # Core business logic, seat locking, payments & sockets
 ├── .env                      # Environment variables
 ├── .env.example              # Sample environment configuration
 ├── .gitignore                # Git ignore rules
 ├── package.json              # Project dependencies and npm scripts
-└── server.js                 # Application entry point
+└── server.js                 # HTTP server bootstrap & Socket.io initialization
 ```
 
 ---
@@ -65,53 +70,73 @@ TicketbookingSystem/
 
 ---
 
+## ⚡ Real-Time Seat Management & WebSockets
+
+Real-time seat locking is coordinated by **Socket.io** and [`services/seatLockService.js`](file:///d:/TicketbookingSystem/services/seatLockService.js):
+
+- **Room Partitioning**: Clients join rooms per show: `show_<showId>`.
+- **Time-To-Live (TTL)**: When seats are selected, they are locked with a configurable TTL (default 10 minutes = 600s).
+- **Conflict Prevention**: If a user attempts to lock a seat already held by another customer, a `409 Conflict` is returned.
+- **Real-Time Broadcasts**:
+  - `seats-locked`: Broadcast to all room subscribers so they immediately see the seats as unavailable.
+  - `seats-released`: Fired automatically upon TTL expiry, user cancellation, or payment failure.
+  - `seats-booked`: Fired permanently upon verified transaction success.
+
+---
+
+## 💳 Checkout Flow & Payment Gateway Integration
+
+1. **Lock Seats**: User selects preferred seats -> calls `POST /api/bookings/lock-seats` (or emits `lock-seats` via socket).
+2. **Initiate Checkout**: Calls `POST /api/bookings/checkout` -> verifies locks, calculates seat pricing across Balcony, Middle, and Lower tiers, and generates a Payment Intent (`Stripe` / Sandbox test intent).
+3. **Process Transaction**: Calls `POST /api/bookings/process-payment` with `paymentIntentId`:
+   - **On Success**: Finalizes `Booking` document in MongoDB, marks seats booked in `Show.tickets`, permanently clears lock cache, emits `seats-booked` via WebSocket, and triggers the `NotificationService` (dispatches e-ticket with QR code via Email & SMS).
+   - **On Failure**: Automatically releases the temporarily locked seats back to the available pool, emits `seats-released` via WebSocket, and notifies the client with 400.
+
+---
+
 ## 📡 API Endpoints Reference
 
-### 1. Authentication Endpoints (`/api/auth`)
+### 1. Show & Seat Layout Endpoints (`/api/shows`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/shows/browse` | Public | Search shows filtered by `genre`, `language`, `date` (YYYY-MM-DD), and `ratings` |
+| `GET` | `/api/shows/:showId/seats` | Public | Full seat layout (Balcony, Middle, Lower) with prices, and real-time statuses (`available`, `locked`, `booked`) |
+| `GET` | `/api/shows` | Public | List all scheduled shows |
+| `GET` | `/api/shows/:showId` | Public | Get single show details |
+
+### 2. Booking & Payment Endpoints (`/api/bookings`)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/bookings/lock-seats` | Protected | Temporarily lock seats with TTL (broadcasts `seats-locked` via Socket.io) |
+| `POST` | `/api/bookings/release-seats`| Protected | Manually release locked seats (broadcasts `seats-released`) |
+| `POST` | `/api/bookings/checkout` | Protected | Calculate tier pricing and generate payment intent |
+| `POST` | `/api/bookings/process-payment`| Protected | Process payment, confirm booking or auto-release seats upon decline, send e-ticket |
+| `GET` | `/api/bookings` | Public/Auth | Query bookings by `userEmail` or `showId` |
+| `GET` | `/api/bookings/:bookingId` | Public/Auth | Get specific booking receipt |
+
+### 3. Authentication Endpoints (`/api/auth`)
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/auth/register` | Public | Register standard user (`role: "user"`) or admin (`role: "admin"`) |
 | `POST` | `/api/auth/register-admin` | Public | Explicit admin account registration |
 | `POST` | `/api/auth/login` | Public | Login with email and password, returns signed JWT |
-| `GET` | `/api/auth/me` | Protected (`verifyToken`) | Fetch authenticated user's current session profile |
+| `GET` | `/api/auth/me` | Protected | Fetch authenticated user's current session profile |
 
-### 2. User Controller Endpoints (`/api/user`)
-*All endpoints protected with `verifyToken`.*
+### 4. User Controller Endpoints (`/api/user`)
+*Protected with `verifyToken`.*
+- `GET/PUT /api/user/profile` - Profile management
+- `GET/POST /api/user/watchlist`, `DELETE /api/user/watchlist/:movieId` - Favorites management
+- `GET/POST /api/user/reviews` - Ratings and reviews
+- `GET /api/user/bookings` - Historical bookings
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/user/profile` | Retrieve current user profile |
-| `PUT` | `/api/user/profile` | Update username and/or password (re-hashes password) |
-| `GET` | `/api/user/watchlist` | Retrieve user's saved movie watchlist with movie metadata |
-| `POST` | `/api/user/watchlist` | Add movie to watchlist by `movieId` |
-| `DELETE` | `/api/user/watchlist/:movieId` | Remove movie from watchlist |
-| `GET` | `/api/user/reviews` | Retrieve all reviews submitted by the user |
-| `POST` | `/api/user/reviews` | Submit movie review and rating (1–5) (pending moderation) |
-| `GET` | `/api/user/bookings` | Retrieve user's historical bookings enriched with show details |
-| `GET` | `/api/user/bookings/:bookingId` | Get single booking receipt details |
-
-### 3. Admin Controller Endpoints (`/api/admin`)
-*All endpoints protected with `verifyToken` and `isAdmin`.*
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/admin/dashboard` | Aggregated dashboard overview (counts & total revenue) |
-| `POST` | `/api/admin/movies` | Create movie with media, genres, and cast |
-| `GET` | `/api/admin/movies` | Read all movies (supports search and genre filter) |
-| `GET` | `/api/admin/movies/:movieId` | Read single movie by `movieId` |
-| `PUT` | `/api/admin/movies/:movieId` | Update movie details |
-| `DELETE` | `/api/admin/movies/:movieId` | Delete movie from platform |
-| `POST` | `/api/admin/theatres` | Create theatre with seating capacities and tier pricing |
-| `GET` | `/api/admin/theatres` | Read all theatres |
-| `GET` | `/api/admin/theatres/:theatreId` | Read single theatre by `theatreId` |
-| `PUT` | `/api/admin/theatres/:theatreId` | Update theatre metadata, seats, or pricing |
-| `DELETE` | `/api/admin/theatres/:theatreId` | Delete theatre |
-| `GET` | `/api/admin/bookings` | Monitor active/cancelled/pending system bookings |
-| `PUT` | `/api/admin/bookings/:bookingId/status` | Update booking status (`confirmed`, `cancelled`, `pending`) |
-| `GET` | `/api/admin/reports/revenue` | Payment and revenue analytics (aggregation pipeline) |
-| `GET` | `/api/admin/reviews` | List reviews with status filters (`pending`, `moderated`) |
-| `PUT` | `/api/admin/reviews/:id/moderate` | Approve or un-approve review (`adminModeration: true/false`) |
-| `DELETE` | `/api/admin/reviews/:id` | Permanently delete abusive review |
+### 5. Admin Controller Endpoints (`/api/admin`)
+*Protected with `verifyToken` and `isAdmin`.*
+- `GET /api/admin/dashboard` - Platform metrics & total revenue
+- `GET/POST/PUT/DELETE /api/admin/movies` - Full CRUD on movies
+- `GET/POST/PUT/DELETE /api/admin/theatres` - Full CRUD on theatres & tier pricing
+- `GET/PUT /api/admin/bookings` - Monitor active bookings & update status
+- `GET /api/admin/reports/revenue` - Revenue analytics
+- `GET/PUT/DELETE /api/admin/reviews` - Review moderation & deletion
 
 ---
 
@@ -129,6 +154,8 @@ NODE_ENV=development
 MONGO_URI=mongodb://127.0.0.1:27017/imovies
 JWT_SECRET=imovies_super_secret_jwt_key_2026_dev
 JWT_EXPIRES_IN=7d
+STRIPE_SECRET_KEY=sk_test_imovies_mock_secret_key_2026
+SEAT_LOCK_TTL_SECONDS=600
 ```
 
 ### 3. Run Automated Tests
