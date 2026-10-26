@@ -9,7 +9,8 @@ Node.js and Express.js backend for the **iMovies** movie ticket booking applicat
 ```plaintext
 TicketbookingSystem/
 ├── config/
-│   └── db.js                 # MongoDB connection logic via Mongoose
+│   ├── db.js                 # MongoDB connection logic (with MongoMemoryServer fallback)
+│   └── seedData.js           # Automated seed data for demo users, movies, theatres & shows
 ├── controllers/
 │   ├── authController.js     # User & Admin registration, login, JWT issuance
 │   ├── userController.js     # User profile, watchlist, reviews, booking history
@@ -58,6 +59,22 @@ TicketbookingSystem/
 ├── package.json              # Project dependencies and npm scripts
 └── server.js                 # HTTP server bootstrap & Socket.io initialization
 ```
+
+---
+
+## 🔑 Pre-Seeded Demo Credentials
+
+The backend automatically seeds demo users, movies, theatres, and active showtimes upon first startup (`config/seedData.js`):
+
+| Role | Email | Password | Features & Permissions |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@imovies.com` | `AdminPassword123!` | Access Admin Dashboard (`/admin`), Full Movie & Theatre CRUD, Revenue Analytics, Booking Oversight, Review Moderation |
+| **Standard User** | `user@imovies.com` | `UserPassword123!` | Ticket Booking, Interactive Seat Locking, Watchlist Management, Review & Rating Submission, Order History |
+
+### 🎬 Pre-Populated Catalog
+- **Movies**: *Oppenheimer* (Biography/Drama), *Interstellar* (Sci-Fi/Adventure), *Dune: Part Two* (Sci-Fi/Action), *The Dark Knight* (Action/Crime).
+- **Theatres**: `IMAX Forum Cineplex` (New York), `Grand Dolby Cinema` (Los Angeles) with Balcony, Middle, and Lower tier layouts and pricing.
+- **Active Shows**: Multiple scheduled shows with real-time seat availability and Socket.io locks.
 
 ---
 
